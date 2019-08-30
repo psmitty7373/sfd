@@ -1,11 +1,17 @@
 var f = function(e)
 {
     var srcElement = e.srcElement? e.srcElement : e.target;
+    if (e.type === 'dragleave' && $(srcElement).hasClass('jstree-wholerow-hovered')) {
+        $(srcElement).removeClass('jstree-wholerow-hovered');
+    }
     if ($.inArray('Files', e.dataTransfer.types) > -1)
     {
         e.stopPropagation();
         e.preventDefault();
         e.dataTransfer.dropEffect = ($(srcElement).hasClass('droppable')) ? 'copy' : 'none';
+        if (e.dataTransfer.dropEffect === 'copy' && e.type !== 'dragleave') {
+            $(srcElement).addClass('jstree-wholerow-hovered');
+        }
         if (e.type == 'drop') {
             var formData = new FormData();
             formData.append('dir', srcElement.id);
@@ -14,22 +20,46 @@ var f = function(e)
             });
             $.ajax({
                 url: '/upload',
-                type: 'POST',
+				type: 'POST',
+                xhr: function() {
+                    var mxhr = $.ajaxSettings.xhr();
+                    if (mxhr.upload) {
+                        console.log("xhr");
+                        $("#progressbar")
+                            .progressbar({ value: 0 })
+                            .children('.ui-progressbar-value');
+                        $("#progressbar").css("display", "block");
+                        mxhr.upload.addEventListener('progress', progressHandler, false);
+                    }
+                    return mxhr;
+                },
                 data: formData,
                 dataType: 'json',
                 cache: false,
                 contentType: false,
                 processData: false,
                 success: function() {
-                    $('#files').jstree('refresh');
+                    $('#files').jstree('refresh'); 
+                    $("#progressbar").progressbar('value', 100).children('.ui-progressbar-value').html('Upload successful!');
+                    setTimeout(function() {
+                        $("#progressbar").fadeOut("slow");
+                    }, 5000);
                 },
                 error: function() {
+                    $("#progressbar").progressbar('value', 100).children('.ui-progressbar-value').html('Upload error!');
                     console.log('upload error');
                 }
             });
-        }
-    }
+		}
+	}
 };
+
+function progressHandler(e) {
+    if (e.lengthComputable) {
+        var p = Math.floor((e.loaded/e.total)*100);
+        $("#progressbar").progressbar('value', p).children('.ui-progressbar-value').html(p.toPrecision(3) + '%');
+    }
+}
 
 $(document).ready(function() {
     document.body.addEventListener('dragleave', f, false);
